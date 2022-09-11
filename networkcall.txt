@@ -1,0 +1,105 @@
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-android-extensions'
+    id 'kotlin-kapt'
+}
+// Kotlin
+  def nav_version = "2.4.2"	
+		
+    implementation("androidx.navigation:navigation-fragment-ktx:$nav_version")
+    implementation("androidx.navigation:navigation-ui-ktx:$nav_version")
+
+    def room_version = "2.4.3"
+    implementation "androidx.room:room-runtime:$room_version"
+    // To use Kotlin annotation processing tool (kapt)
+    kapt "androidx.room:room-compiler:$room_version"
+    // optional - Kotlin Extensions and Coroutines support for Room
+    implementation("androidx.room:room-ktx:$room_version")
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.1'
+
+    //Retrofit
+    implementation 'com.squareup.retrofit2:retrofit:2.7.0' // Retrofit Core
+    implementation 'com.squareup.retrofit2:converter-gson:2.5.0' // GSON Converter
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.3.0' // Http Logging
+
+
+/***************API CAll********************/
+interface ApiCalls {
+
+     /*Login*/
+    @FormUrlEncoded
+    @POST(UrlConstant.URL_SIGNIN_WITH_PSWD)
+    fun getSignInWithPassword(
+        @Field("username") userName: String?,
+        @Field("password") password: String?
+    ): Call<ResponsePasswordSignIn?>
+}
+
+/**************** ApiInstance ******************/
+import android.text.TextUtils
+import com.littleangleworld.BuildConfig
+import okhttp3.*
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+
+object ApiInstance {
+    private var retrofit: Retrofit? = null
+
+    val instance: Retrofit?
+        get() {
+            if (retrofit == null) {
+                val okHttpClient = OkHttpClient.Builder()
+
+                //region Logging Response
+                val httpLoggingInterceptor = HttpLoggingInterceptor()
+                httpLoggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+                if (BuildConfig.DEBUG) {
+                    okHttpClient.addInterceptor(httpLoggingInterceptor)
+                }
+                //endregion
+
+                //region Basic HTTP Authentication
+                val username = "yourusername"
+                val password = "yourpassword"
+                var authToken = ""
+                if (!TextUtils.isEmpty(username) && !TextUtils.isEmpty(password)) {
+                    authToken = Credentials.basic(username, password);
+                }
+                //Create a new Interceptor.
+                val headerAuthorizationInterceptor: Interceptor = object : Interceptor {
+                    override fun intercept(chain: Interceptor.Chain): Response {
+                        var request: Request = chain.request()
+                        val headers = request.headers.newBuilder().add("Authorization", authToken).build()
+                        request = request.newBuilder().headers(headers).build()
+                        return chain.proceed(request)
+                    }
+                }
+                //Add the interceptor to the client builder.
+                okHttpClient.addInterceptor(headerAuthorizationInterceptor)
+                //endregion
+
+                //Create Singleton Object
+                retrofit = Retrofit.Builder()
+                    .baseUrl(UrlConstant.ROOT_URL)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .client(okHttpClient.readTimeout(2, TimeUnit.MINUTES)
+                        .connectTimeout(2, TimeUnit.MINUTES)
+                        .build())
+                    .build()
+            }
+            return retrofit
+        }
+}
+/**************************CONSTANT BASE URL*******************************/
+class UrlConstant {
+    companion object{
+        const val ROOT_URL = "https://demome.in/baseurl"
+        const val URL_SIGNIN_WITH_PSWD = ""
+        const val URL_LOGOUT = ""
+       
+}
+}
